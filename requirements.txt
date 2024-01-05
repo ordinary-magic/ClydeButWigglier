@@ -1,0 +1,5 @@
+discord==2.3.2
+aiohttp
+vaderSentiment
+language_tool_python
+openai

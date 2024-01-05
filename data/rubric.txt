@@ -1,0 +1,7 @@
+Scoring Rubric:
+10 pts - length (1 pts per non stopword, to max amt)
+20 pts - grammar/spelling (grammar checker)
+30 pts - on topic (topic analysis of last x posts, does it match (https://www.pluralsight.com/guides/topic-identification-nlp))
+20 pts - vocabulary (look for sat words??)
+20 pts - sentiment (sentiment checker https://github.com/cjhutto/vaderSentiment)
+
