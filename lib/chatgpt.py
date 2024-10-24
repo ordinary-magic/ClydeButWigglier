@@ -32,7 +32,7 @@ async def get_response_to_chat(messages, model='gpt4'):
     return str(e)
   
 # Get a response for a set prompt
-async def get_single_response(prompt, model="text-davinci-003"):
+async def get_single_response(prompt, model="gpt-3.5-turbo-instruct"):
   try:
     return (await get_client().completions.create(
         model=model,
