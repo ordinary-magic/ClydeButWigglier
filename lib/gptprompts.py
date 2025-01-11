@@ -1,5 +1,5 @@
 # Module to manage gpt prompt access
-import lib.userdata as db
+import lib.channeldata as db
 
 DEFAULT_CONTEXT = 5
 

@@ -1,5 +1,5 @@
 # Pile of various helper methods to do discord api things
-from lib.userdata import get_name_and_pronouns
+from lib.serverdata import get_name_and_pronouns
 import re
 from discord import File as dfile
 
@@ -21,7 +21,13 @@ async def resolve_reference(message):
   
 # Get a string username for a given user
 def get_username(user):
-  return user.nick or user.name
+  return user.nick or user.global_name or user.name
+
+# Get a string username for a given user id and discord channel
+#   will return None if the id isnt in the server 
+def get_username_from_id(userid, channel):
+  user = next(filter(lambda x: x.id == userid, get_channel_users(channel)), None)
+  return get_username(user) if user else None
   
  # Grammatical join of a list (eg. a, b, and c)  
 def grammar_join(list):

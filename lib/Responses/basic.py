@@ -1,5 +1,4 @@
 from .response import ResponseInterface
-from lib import userdata
 import random
 import time
 

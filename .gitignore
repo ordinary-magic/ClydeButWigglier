@@ -1,6 +1,7 @@
 live/
 __pycache__/
 keys/
+lib/spellchecker.py
 data/users.db
 data/users/*
 .vscode

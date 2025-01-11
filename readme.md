@@ -9,7 +9,7 @@ Required External Libraries are all avaliable in the requirements.txt document
 To setup a new (virtual) environment, run the following command:
 pip install -r requirements.txt
 
-If you're running an older version of python3, you needa differnet spell checker.
+If you're running an older version of python3, you need a differnet spell checker.
 See lib/spellchecker.py for details
 
 run the bot by running the following command from the base of the repo (ideally using screen):

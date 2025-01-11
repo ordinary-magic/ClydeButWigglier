@@ -14,6 +14,7 @@ class ResponseInterface:
   # Data required by rate limiting of the responses
   cooldown = timedelta(-20) # Default Cooldown is negative in case of race conditions
   last_use = datetime.min # Last use of the response
+  manual_timer = False # If True, responses will handle their own timers (check is skipped)
   
   # Generate a static response
   async def respond(self) -> str:
@@ -38,7 +39,7 @@ class ResponseInterface:
   # Entry point into the class. Will check the cooldown first, then call the response chain
   # Will Return (Message Text, Optional Message to Reply To, Extra kwargs for post command)
   async def get_response(self, text, request, channel):
-    if self.check_timer():
+    if self.manual_timer or self.check_timer():
       return await self.respond_with_context(text, request, channel)
     else:
       return ['!{} is on cooldown ({}s left)'.format(

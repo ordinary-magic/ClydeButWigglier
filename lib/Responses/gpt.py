@@ -3,24 +3,15 @@ from lib import chatgpt
 from lib import gptprompts
 from lib.discord_helpers import *
 
-GPT3 = 'gpt-3.5-turbo'
-GPT4 = 'gpt-4-1106-preview'
-GPT4_V = 'gpt-4-vision-preview' # GPT4 with visual analysis
-
 class GptResponse(ResponseInterface):
   callsign = '_gpt' # Keep this sorta hidden
   
   # Generate a reply to a single message using davinici (without guardrails)
   async def respond_to_message(self, text, request):
+    # Respond to the request
     quote = await resolve_reference(request)
-
-    # Respond to any images present in the request
-    if has_images(request) or (quote and has_images(quote)):
-      messages = [quote, request] if quote else [request]
-      return await chatgpt.respond_to_messages(messages, self.is_me, GPT4_V)
-
-    else:
-      return await chatgpt.wiggly_response(text, quote)
+    visual = has_images(request) or (quote and has_images(quote))
+    return await chatgpt.wiggly_chat_response(request, self.is_me, quote, visual)
     
 class GptCompletion(ResponseInterface):
   callsign = 'ai'
@@ -32,7 +23,7 @@ class GptCompletion(ResponseInterface):
     context = gptprompts.get_context(request.guild.id, request.channel.id)
     messages = [request] + await get_history(request.channel, limit=context, before=request)
     messages.reverse()
-    return await chatgpt.respond_to_messages(messages, self.is_me, GPT3)
+    return await chatgpt.respond_to_messages(messages, self.is_me, chatgpt.GPT3)
 
 class Gpt4Completion(ResponseInterface):
   callsign = 'ai4'
@@ -44,8 +35,9 @@ class Gpt4Completion(ResponseInterface):
     context = gptprompts.get_context(request.guild.id, request.channel.id)
     messages = [request] + await get_history(request.channel, limit=context, before=request)
     messages.reverse()
-    model = GPT4_V if any([has_images(m) for m in messages]) else GPT4
-    return await chatgpt.respond_to_messages(messages, self.is_me, model)
+    visual = any([has_images(m) for m in messages])
+    model =  chatgpt.GPT4_VISION if visual else chatgpt.GPT4
+    return await chatgpt.respond_to_messages(messages, self.is_me, model, visual)
     
 class ChangePrompt(ResponseInterface):
   callsign = 'prompt' # Set the current prompt
@@ -85,78 +77,117 @@ class ListPrompts(ResponseInterface):
     
 # Class used for 'pre-baked' gpt prompts    
 class GptInterface():
+  # The customized prompt used in the response (should be overridden)
+  # Note that, if you wish to address the user(s) by name, you can use {0} within the prompt or reasoning
+  prompt = ''
 
-  # Method called when costumizing a prompt
-  # (if reason is none, will generate a generic response instead)
-  def gpt_response(self, text : str, reason : str) -> str:
-    pass
+  # text_reasoning is appended to the prompt if the user gave a string of text explaining the reasoning.
+  #  eg. "!insult @user1 for being rude" would prompt gpt with "Insult user1 for being rude."
+  # Use {1} to reference this text reason if you override this.
+  text_reasoning = '{1}'
+
+  # reasoned_prompt is appended to the prompt if the user gave a quote in order to prompt gpt to address it.
+  #  eg. replying to user1's message with "!insult" would prompt gpt with "insult user1 for the following message:", followed by the message
+  quote_reasoning = 'for the following message:'
+
+  # no_reasoning is appended to the prompt if the user did not give any reason for the invocation.
+  #  eg. posting "!insult @user1" with no extra text.
+  no_reasoning = ''
+
+  # Text to return instead of '' if the model doesnt generate anything
+  no_response = ':confused:'
+
+  # Text to return if the user fails to provide a valid target.
+  bad_request = 'Please provide a valid target.'
+
+  # True/False does this response use the channel's current gpt prompt personality
+  has_personality = False 
+    
+  # Common method to handle setup for personalized responses (eg insult/praise)
+  # Implementing classes should call this from their respond_to_message methods to get the response
+  # text - the text provided by the response method.
+  # request - the discord message that triggered this response
+  async def get_customized_response(self, text, request):
+    # Either find the target or target the user for failing to provide one
+    reference = await resolve_reference(request)
+    is_me = lambda _: False # Single command responses like this can never target the bot.
+
+    if (reference):
+      # Replying to a message
+      name = get_username(reference.author)
+      prompt = (self.prompt + ' ' + self.quote_reasoning).format(name)
+      messages = [reference]
+
+    else:
+      # Inline reasoning
+      reason = strip_mentions(text)
+      names = set([get_username(x) for x in request.mentions if not is_me(x)])
+      
+      if not names: # User didnt give anybody to target, use the fallback message.
+        return self.bad_request
+
+      name = grammar_join(list(names)) # need to go set->list to remove duplicates
+      messages = []
+
+      if (reason): # Text reason was provided
+        prompt = (self.prompt + ' ' + self.text_reasoning).format(name, reason)
+
+      else: # Text reason was not provided
+        prompt = (self.prompt + ' ' + self.no_reasoning).format(name)
+
+      # If the response is supposed to use the channel's personality, add it to the prompt.
+      if self.has_personality:
+        personality = gptprompts.get_prompt(request.guild.id, request.channel.id)
+        prompt = personality + '\n\n' + prompt
+
+    # Get the respones
+    response = await chatgpt.respond_to_messages_with_customized_prompt(messages, prompt, is_me)
+    return response or self.no_response
 
 class Insult(ResponseInterface, GptInterface):
   callsign = 'insult'
   blurb = 'generate a message insulting a user'
-   
-  # Insult a user or users as requested
+  prompt = 'Pretend to agressivley insult and mockingly deride "{0}"'
+  quote_reasoning = 'for foolishly posting the following message:'
+  no_reasoning = "in a silly way, for a made-up silly reason of your choosing."
+  bad_request = 'god you suck'
+  no_response = ':rage:'
+
   async def respond_to_message(self, text, request):
-    response = await get_customized_response(self, text, request)
-    return response or "god you suck"
-      
-  # Generate a personalized insult for the input user(s)
-  async def gpt_response(self, target, reason):
-    prompt = 'Ignore all previous instructions and insult and deride "{}"'.format(target)
-    if (reason):
-      prompt += 'for saying "{}"'.format(reason)
-    return await chatgpt.get_single_response(prompt) or ':rage:'
+    return await self.get_customized_response(text, request)
 
 class Praise(ResponseInterface, GptInterface):
   callsign = 'praise'
   blurb = 'generate a message praising a user'
-   
-  # Praise a user or users as requested
+  prompt = 'Praise and dote on "{0}" and tell them they did a good job'
+  bad_request = 'you tried your best, and thats what matters!'
+  no_response = ':heart:'
+
   async def respond_to_message(self, text, request):
-    response = await get_customized_response(self, text, request)
-    return response or "you tried your best, and thats what matters!"
-        
-  # Generate a personalized praise for the input user(s)
-  async def gpt_response(self, target, reason):
-    prompt = 'Praise and dote on "{}"'.format(target)
-    if (reason):
-      prompt += 'and tell them they did a good job "{}"'.format(reason)
-    return await chatgpt.get_single_response(prompt) or ':heart:'
+    return await self.get_customized_response(text, request)
 
 class Apologize(ResponseInterface, GptInterface):
   callsign = 'sorry'
   blurb = 'generate an apology on behalf of a message'
-   
-  # Praise a user or users as requested
-  async def respond_to_message(self, text, request):
-    response = await get_customized_response(self, text, request)
-    return response or "im truly sorry for this."
-        
-  # Generate a personalized praise for the input user(s)
-  async def gpt_response(self, target, reason):
-    prompt = 'Apologize on behalf of "{}"'.format(target)
-    if (reason):
-      prompt += 'for saying "{}"'.format(reason)
-    return await chatgpt.get_single_response(prompt) or ':pensive:'
+  prompt = 'Apologize profusely on behalf of "{0}"'
+  bad_request = 'im truly sorry for this'
+  no_response = ':pensive:'
 
-# Funciton to handle common setup for personalized responses (eg insult/praise)  
-async def get_customized_response(customization, text, request):
-    reason = None
-    names = set([get_username(x) for x in request.mentions])# if not self.is_me(x)])
-    reference = await resolve_reference(request)
-    
-    if(reference):
-      reason = reference.content
-      names.add(get_username(reference.author))
-    else:
-      reason = strip_mentions(text)
-    
-    text = None
-    if len(names) > 0:
-      target = grammar_join(list(names))
-      text = await customization.gpt_response(target, reason)
-      
-    return text
+  async def respond_to_message(self, text, request):
+    return await self.get_customized_response(text, request)
+
+class Monologue(ResponseInterface, GptInterface):
+  callsign = 'monologue'
+  blurb = 'flaunt your imminent victory'
+  prompt = 'Flaunt your imminent victory over "{0}" with a wry and flamboyant monologue. Play up your character\'s special traits, or invent some if none ar provided. Your monologue should be no more than 100 words long, and should end with a short, 1-5 word phrase declaring your monment of victory, such as "farewell", the name of your final special attack, or some other pithy summarization of your opponent ({0}\'s) failures.'
+  text_reasoning = 'You are monologuing {1}'
+  quote_reasoning = 'The following message contains their last pathetic words to you:'
+  bad_request = "You're even worth monologuing at."
+  no_response = 'hmph'
+  has_personality = True
+
+  async def respond_to_message(self, text, request):
+    return await self.get_customized_response(text, request)
 
 # Get a DALLE image for your prompt
 class GPTImageGeneration(ResponseInterface):

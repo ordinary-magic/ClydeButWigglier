@@ -1,15 +1,14 @@
-from datetime import datetime
 import sqlite3
 import os
 
-class UserDatabase():
+class ServerDatabase():
   # Initialize the database connection
-  def __init__(self, channel):
+  def __init__(self, server):
     os.makedirs('data/users', exist_ok=True)
-    self._db = sqlite3.connect(f'data/users/{channel}.db')
-    query = 'CREATE TABLE IF NOT EXISTS users(id INTEGER UNIQUE, name TEXT, pronouns TEXT, flag TEXT)'
+    self._db = sqlite3.connect(f'data/users/srv{server}.db')
+    query = 'CREATE TABLE IF NOT EXISTS users(id INTEGER UNIQUE, name TEXT, pronouns TEXT, special TEXT, points REAL DEFAULT 0 NOT NULL, point_role TEXT)'
     self._db.execute(query)
-    query = 'CREATE TABLE IF NOT EXISTS prompts(id INTEGER UNIQUE, prompt TEXT, context INTEGER)'
+    query = 'CREATE TABLE IF NOT EXISTS static_vars(id INTEGER UNIQUE, point_name TEXT)'
     self._db.execute(query)
     
   # Close the database
@@ -36,6 +35,12 @@ class UserDatabase():
     val = self._db.execute(query, (id,)).fetchone()
     return val[0] if val else None
   
+  # Initialize Column - set all values in a column to the same thing
+  def initialize_column(self, column, value, table='users'):
+    query = f'UPDATE {table} SET {column} = ?'
+    self._db.execute(query, (value,))
+    self._db.commit()  
+
   # Set a given field to the specified value for the input user id.
   #   Will create a new entry if needed
   def set_value(self, id, column, value, table='users'):
@@ -50,7 +55,7 @@ class UserDatabase():
   # Get (Name, Pronouns) for a given ID. Either or both can be none.
   def get_name_and_pronouns(self, id):
     query = 'SELECT name, pronouns FROM users WHERE id = ?'
-    return self._db.execute(query, (id,)).fetchone()
+    return self._db.execute(query, (id,)).fetchone() or (None, None)
   
   # Get pronouns for all users with a specific name (or None if not in db)
   def get_pronouns_for_name(self, name):
@@ -59,66 +64,58 @@ class UserDatabase():
     return [x[0] for x in results]
 
   # Get a user with a specific flag (or None if not in db)
-  def get_special_user(self, flag):
-    query = 'SELECT id FROM users WHERE flag = ?'
-    val = self._db.execute(query, (flag,)).fetchone()
+  def get_special_user(self, type, field = 'special'):
+    query = f'SELECT id FROM users WHERE {field} = ?'
+    val = self._db.execute(query, (type,)).fetchone()
     return val[0] if val else None
+  
+  # Add an amount to a value, or just store the value if it doesnt exist yet
+  def add_to_value(self, id, column, amount, table='users'):
+    try:
+      query = f'UPDATE {table} SET {column} = {column} + ? WHERE id = ?'
+      self._db.execute(query, (amount, id))
+    except sqlite3.Error:
+      query = f'INSERT INTO {table} (id, {column}) VALUES (?, ?)'
+      self._db.execute(query, (amount, id))
+    self._db.commit()  
+
+  # Get all nonzero point totals for users in the table
+  def get_points(self):
+    query = 'SELECT id, points FROM users WHERE points <> 0'
+    return self._db.execute(query).fetchall()
 
 # Get all names that are stored in a server's db
 def get_all_names(server):
-  with UserDatabase(server) as db:
+  with ServerDatabase(server) as db:
     return db.get_all_values('name')
 
 # Get the name and pronouns of a specific server
 # Returns (Name, Pronouns), and both fields can be empty
 def get_name_and_pronouns(server, id):
-  with UserDatabase(server) as db:
+  with ServerDatabase(server) as db:
     return db.get_name_and_pronouns(id) or (None, None)
-
-# Get the prompt for a channel in a server
-# Will return the current prompt, or None
-def get_prompt(server, channel):
-  with UserDatabase(server) as db:
-    return db.get_value(channel, 'prompt', 'prompts')
-  
-# Get the context amount for a channel in a server
-# Will return the current context, or None if the row doesnt exist yet
-def get_context(server, channel):
-  with UserDatabase(server) as db:
-    return db.get_value(channel, 'context', 'prompts')
 
 # Get the pronouns for a specific name in a given server
 # Will return a comma seperated list of all pronouns the user uses
 def get_pronouns_for_name(server, name):
-  with UserDatabase(server) as db:
+  with ServerDatabase(server) as db:
     return db.get_pronouns_for_name(name)
   
 # Get the id of a special user, optionally in a specific server
 #   flag is a special text flag
 #   related_to is a message context to fetch a user list from
 def get_special_user(server, flag):
-  with UserDatabase(server) as db:
+  with ServerDatabase(server) as db:
     user = db.get_special_user(flag)
   return user
 
 # Set the name of a specific user in a given server
 def set_name(server, id, name):
-  with UserDatabase(server) as db:
+  with ServerDatabase(server) as db:
     db.set_value(id, 'name', name)
-
-# Set the prompt for a channel in a server
-def set_prompt(server, channel, prompt):
-  with UserDatabase(server) as db:
-    db.set_value(channel, 'prompt', prompt, 'prompts')
-
-# Set the context amount for a channel in a server
-def set_context(server, channel, context):
-  with UserDatabase(server) as db:
-    if context >= 0:
-      db.set_value(channel, 'context', context, 'prompts')
 
 # Set the pronouns of a specific user in a given server
 def set_pronouns(server, id, pronouns):
-  with UserDatabase(server) as db:
+  with ServerDatabase(server) as db:
     db.set_value(id, 'pronouns', pronouns)
 

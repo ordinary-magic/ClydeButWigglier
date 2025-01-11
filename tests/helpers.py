@@ -3,11 +3,16 @@ import discord, asyncio
 from unittest.mock import Mock
   
 # Construct a bare mockery of a discord message with the requested fields
-def get_mock_discord_message(author_id=0, mentions=[]):
+def get_mock_discord_message(author_id=0, mentions=[], guildid=0):
   # Mock the message and add required fields
   mock_request = Mock(spec=discord.Message)
   mock_request.mentions = [get_mock_user(x) for x in mentions]
   mock_request.author = get_mock_user(author_id)
+  
+  mock_request.guild = Mock(spec=discord.Guild)
+  mock_request.guild.id = guildid
+  mock_request.channel = Mock(spec=discord.TextChannel)
+  mock_request.channel.guild = mock_request.guild
   
   # Return the mockery
   return mock_request

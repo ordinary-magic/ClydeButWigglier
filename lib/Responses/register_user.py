@@ -1,5 +1,5 @@
 from .response import ResponseInterface
-from lib import userdata
+from lib import serverdata as db
 
 def is_pam_name(name: str) -> bool:
     # rudimentary check to see if someone is trying to be pamitha
@@ -11,7 +11,7 @@ def is_pam_name(name: str) -> bool:
     return found
 
 def update_pronouns(server: int, id: int, target: str, delete: bool = False) -> str:
-    p_string = userdata.get_name_and_pronouns(server, id)[1]
+    p_string = db.get_name_and_pronouns(server, id)[1]
     if (p_string):
         p_list = p_string.split(', ') # pronouns are comma seperated list
     else:
@@ -24,10 +24,10 @@ def update_pronouns(server: int, id: int, target: str, delete: bool = False) -> 
             p_list.remove(target)
             if len(p_list) > 0:
                 p_string = ', '.join(p_list)
-                userdata.set_pronouns(server, id, p_string)
+                db.set_pronouns(server, id, p_string)
                 return f'Your updated pronouns are: {p_string}'
             else:
-                userdata.set_pronouns(server, id, '')
+                db.set_pronouns(server, id, '')
                 return f'Your pronouns have been deleted.'
         else:
             return f'You don\'t have those pronouns. Current pronouns are: {", ".join(p_string)}'
@@ -37,14 +37,14 @@ def update_pronouns(server: int, id: int, target: str, delete: bool = False) -> 
         else:
             p_list.append(target)
             p_string = ', '.join(p_list)
-            userdata.set_pronouns(server, id, p_string)
+            db.set_pronouns(server, id, p_string)
             return f'Okay, I\'ll remember your pronouns: {p_string}'
         
 def update_name(server: int, id: int, target: str) -> str:
     if (id != 275787113050406923) and is_pam_name(target.lower()):
         # someone is trying to impersonate pam. we must defend her
         return "I don't think that's really your name..."
-    userdata.set_name(server, id, target)
+    db.set_name(server, id, target)
     return f'Your name has been registered as {target}.'
 
 # Interface for registering your preferred name or pronouns with the bot
@@ -87,17 +87,17 @@ class WhoIsUser(ResponseInterface):
     server = message.guild.id
 
     if args[0] == '':
-        name, pronouns = userdata.get_name_and_pronouns(server, message.author.id)
+        name, pronouns = db.get_name_and_pronouns(server, message.author.id)
         if not name:
             return 'I don\'t know who you are yet! Register your name or pronouns with !register.'
         return f'You are {name}. ' if name else 'You have not registered your name yet. ' + \
             (f'You have the following pronouns: {pronouns}' if pronouns else '')
     elif args[0] == '-l':
-        names = ', '.join(userdata.get_all_names(server))
+        names = ', '.join(db.get_all_names(server))
         return f'Here are all the users who have told me their names: {names}'
     else:
         name = ' '.join(args)
-        p = userdata.get_pronouns_for_name(server, name)
+        p = db.get_pronouns_for_name(server, name)
         if len(p) == 0:
             return f'I don\'t know anyone named {name}.'
         elif len(p) == 1:
