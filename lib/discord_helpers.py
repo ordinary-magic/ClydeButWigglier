@@ -32,6 +32,22 @@ def get_username_from_id(userid, channel):
  # Grammatical join of a list (eg. a, b, and c)  
 def grammar_join(list):
   return ", ".join(list[:-2] + [" and ".join(list[-2:])])
+
+def make_ordinal(n):
+    '''
+    Convert an integer into its ordinal representation::
+
+        make_ordinal(0)   => '0th'
+        make_ordinal(3)   => '3rd'
+        make_ordinal(122) => '122nd'
+        make_ordinal(213) => '213th'
+    '''
+    n = int(n)
+    if 11 <= (n % 100) <= 13:
+        suffix = 'th'
+    else:
+        suffix = ['th', 'st', 'nd', 'rd', 'th'][min(n % 10, 4)]
+    return str(n) + suffix
   
 # Strip any leading mentions from the input text
 def strip_mentions(text):

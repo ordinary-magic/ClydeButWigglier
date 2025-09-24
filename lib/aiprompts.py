@@ -1,4 +1,4 @@
-# Module to manage gpt prompt access
+# Module to manage ai prompt access
 import lib.channeldata as db
 
 DEFAULT_CONTEXT = 5
