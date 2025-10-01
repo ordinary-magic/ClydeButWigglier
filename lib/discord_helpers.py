@@ -56,7 +56,7 @@ def strip_mentions(text):
   return text.strip()
   
 # Strip any leading flags from the input text
-def strip_flags(text):
+def strip_flags(text) -> str:
   while text.startswith('!'):
     text = (text.split(None, 1) + [''])[1]
   return text.strip()

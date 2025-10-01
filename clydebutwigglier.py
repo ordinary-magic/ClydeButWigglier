@@ -54,18 +54,22 @@ class RemiliaClakeBot(discord.Client):
 		redirect = should_redirect_response(bot_mentioned, message)
 
 		if redirect == AiRpResponseType.CAPTURE_RESPONSE:
-			replies.append(await self.get_response('_selfaware', text, message, channel))
+			# Make the output channel show a "bot is typing..." message while we work
+			async with channel.typing():
+				replies.append(await self.get_response('_selfaware', text, message, channel))
 
 		elif redirect == AiRpResponseType.RESPOND_NORMALLY:
 			# Check if we were mentioned directly (takes priority over other stuff)
 			if bot_mentioned:
-				# Manually call the secret chatgpt response handler
-				replies.append(await self.get_response('_chat', text, message, channel))
+				async with channel.typing():
+					# Manually call the secret chatgpt response handler
+					replies.append(await self.get_response('_chat', text, message, channel))
 			
 			# Otherwise, check for any commands
 			else:
 				for flag in set(flags) & set(self.responses.keys()):
-					replies.append(await self.get_response(flag, text, message, channel))
+					async with channel.typing():
+						replies.append(await self.get_response(flag, text, message, channel))
 
 		# redirect == IGNORE_RESPONSE does nothing
 

@@ -4,7 +4,7 @@ import lib.channeldata as db
 DEFAULT_CONTEXT = 5
 
 # Get the saved prompt or the default one
-def get_prompt(server: int, channel: int):
+def get_prompt(server: int, channel: int) -> str:
   prompt = db.get_prompt(server, channel)
   return prompt or pick_prompt('1')
 
@@ -22,7 +22,7 @@ def get_prompts():
     return [line.strip().split('::') for line in prompt_data]
 
 # Set the prompt to one of the pre-existing ones
-def pick_prompt(selection: str):
+def pick_prompt(selection: str) -> str:
   newprompt = None
   if selection.isdigit():
     try: newprompt = get_prompts()[int(selection) - 1][1]
@@ -31,7 +31,7 @@ def pick_prompt(selection: str):
     for prompt in get_prompts():
       if selection == prompt[0]:
         newprompt = prompt[1]
-  return newprompt
+  return newprompt or ''
   
 # Set the prompt from a user's message
 def set_prompt(message_text: str, server: int, channel: int):

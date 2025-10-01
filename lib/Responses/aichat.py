@@ -1,7 +1,9 @@
+from typing import Any
 from .response import ResponseInterface
 from lib import aiapi
 from lib import aiprompts
 from lib.discord_helpers import *
+from lib.misc_apis import get_random_wikipedia_article_name
 
 class GptResponse(ResponseInterface):
 	callsign = '_chat' # Keep this sorta hidden
@@ -217,3 +219,32 @@ class GPTImageGeneration(ResponseInterface):
 
 		# All Posting is handled internally.
 		return None, None
+	
+class InfoDump(ResponseInterface):
+	callsign = 'infodump'
+	blurb = 'get the bot to infodump about a topic'
+	
+	def get_help(self) -> str:
+		return  '!infodump [topic]\n' +\
+				'Return an in-character infodump, either about the provided topic if one is given, or a random one otherwise.'
+	
+	async def respond_to_message(self, text: str, request: object) -> str:
+		topic = strip_flags(text)
+		personality = aiprompts.get_prompt(request.guild.id, request.channel.id)
+		
+		# Get a random topic if one was not provided
+		if not topic:
+			topics = [f'"{x}"' for x in await get_random_wikipedia_article_name(3)]
+			topic = 'one of the following topics: ' + grammar_join(topics)
+		
+		# Otherwise just put it in quotes.
+		else:
+			topic = f'"{topic}"'
+
+		# Write the ai's instructions
+		instructions = f'Write an enthusiastic and detailed explanation of {topic}.'
+		prompt = personality + '\n\n' + instructions
+
+		# Generate the respone
+		response = await aiapi.respond_to_messages_with_customized_prompt([], prompt, lambda _: False)
+		return response or ':think:'
